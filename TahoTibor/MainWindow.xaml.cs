@@ -31,7 +31,7 @@ namespace TahoTibor
             // Add a welcome message
             Messages.Add(new ChatMessage
             {
-                Content = "Szia! Én vagyok Tahó Tibor. Miben segíthetek?",
+                Content = "Na, végre megérkeztél! Ne számíts arra, hogy simogatni foglak, de ha túl éled, legalább nem lesz annyira uncsi. Ha meg nem bírod, akkor csak szólj, és küldök egy párnát, hogy könnyebb legyen elviselni a fájdalmat.",
                 SenderName = "Tahó Tibor",
                 Timestamp = DateTime.Now,
                 IsFromMe = false
