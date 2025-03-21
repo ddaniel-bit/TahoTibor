@@ -1,5 +1,9 @@
 ﻿using System;
 using System.Collections.ObjectModel;
+using System.Net.Http;
+using System.Text;
+using System.Text.Json;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
 
@@ -8,41 +12,28 @@ namespace TahoTibor
     public partial class MainWindow : Window
     {
         public ObservableCollection<ChatMessage> Messages { get; set; }
+        private readonly HttpClient _httpClient;
+        private readonly string _apiKey = "AIzaSyBVQsXc1vE4oH2s1LO3ukTyTQjdXVv2mFM"; // Replace with your actual API key
+        private readonly string _apiUrl;
 
         public MainWindow()
         {
             InitializeComponent();
 
+            // Initialize HTTP client
+            _httpClient = new HttpClient();
+            _apiUrl = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={_apiKey}";
+
             // Initialize collection and set as DataContext
             Messages = new ObservableCollection<ChatMessage>();
             DataContext = this;
 
-            // Add some sample messages
-            AddSampleMessages();
-        }
-
-        private void AddSampleMessages()
-        {
+            // Add a welcome message
             Messages.Add(new ChatMessage
             {
-                Content = "Hey there! How are you?",
-                SenderName = "Friend",
-                Timestamp = DateTime.Now.AddMinutes(-10),
-                IsFromMe = false
-            });
-
-            Messages.Add(new ChatMessage
-            {
-                Content = "I'm good, thanks for asking! What about you?",
-                Timestamp = DateTime.Now.AddMinutes(-8),
-                IsFromMe = true
-            });
-
-            Messages.Add(new ChatMessage
-            {
-                Content = "I'm doing great. Did you finish the project we were talking about?",
-                SenderName = "Friend",
-                Timestamp = DateTime.Now.AddMinutes(-5),
+                Content = "Szia! Én vagyok Tahó Tibor. Miben segíthetek?",
+                SenderName = "Tahó Tibor",
+                Timestamp = DateTime.Now,
                 IsFromMe = false
             });
         }
@@ -53,7 +44,7 @@ namespace TahoTibor
 
             if (!string.IsNullOrEmpty(messageText))
             {
-                // Add the new message
+                // Add the user's message
                 Messages.Add(new ChatMessage
                 {
                     Content = messageText,
@@ -67,43 +58,102 @@ namespace TahoTibor
                 // Scroll to the bottom
                 ChatListView.ScrollIntoView(Messages[Messages.Count - 1]);
 
-                // Simulate a response (for demo purposes)
-                SimulateResponse();
+                // Get response from Gemini API
+                GetGeminiResponseAsync(messageText);
             }
         }
 
-        private void SimulateResponse()
+        private async Task GetGeminiResponseAsync(string userMessage)
         {
-            // This is just for demonstration
-            string[] responses = new[]
+            try
             {
-                "That's interesting!",
-                "Tell me more about it.",
-                "I see what you mean.",
-                "OK, I'll keep that in mind.",
-                "Thanks for sharing that with me!"
-            };
-
-            // Pick a random response
-            Random random = new Random();
-            string response = responses[random.Next(responses.Length)];
-
-            // Add the response after a delay (in a real app, you'd connect to a service)
-            System.Threading.Tasks.Task.Delay(1000).ContinueWith(t =>
-            {
-                Dispatcher.Invoke(() =>
+                // Create Gemini API request body
+                var requestBody = new
                 {
-                    Messages.Add(new ChatMessage
+                    contents = new[]
                     {
-                        Content = response,
-                        SenderName = "Friend",
-                        Timestamp = DateTime.Now,
-                        IsFromMe = false
-                    });
+                        new
+                        {
+                            parts = new[]
+                            {
+                                new {
+                                    text = userMessage + " - Te egy bunkó személyi edző vagy, kérlek viselkedj kicsit bunkón " +
+                                    "ez egy vicces valasz funkciohoz kell nem kell sertegetni az előző üzenetre érdemleges " +
+                                    "csak akkor válaszolj ha súlyzós edzés témában tették azt fel."
+                                }
+                            }
+                        }
+                    }
+                };
 
-                    // Scroll to the bottom
-                    ChatListView.ScrollIntoView(Messages[Messages.Count - 1]);
+                // Send request to Gemini API
+                var response = await _httpClient.PostAsync(
+                    _apiUrl,
+                    new StringContent(JsonSerializer.Serialize(requestBody), Encoding.UTF8, "application/json"));
+
+                // Process response
+                if (response.IsSuccessStatusCode)
+                {
+                    string responseContent = await response.Content.ReadAsStringAsync();
+
+                    // Extract text from response
+                    using JsonDocument doc = JsonDocument.Parse(responseContent);
+
+                    // Check if we have candidates in the response
+                    if (doc.RootElement.TryGetProperty("candidates", out var candidates) &&
+                        candidates.GetArrayLength() > 0)
+                    {
+                        var text = candidates[0]
+                            .GetProperty("content")
+                            .GetProperty("parts")[0]
+                            .GetProperty("text")
+                            .GetString();
+
+                        // Add Tahó Tibor's response
+                        Dispatcher.Invoke(() =>
+                        {
+                            Messages.Add(new ChatMessage
+                            {
+                                Content = text,
+                                SenderName = "Tahó Tibor",
+                                Timestamp = DateTime.Now,
+                                IsFromMe = false
+                            });
+
+                            // Scroll to the bottom
+                            ChatListView.ScrollIntoView(Messages[Messages.Count - 1]);
+                        });
+                    }
+                    else
+                    {
+                        AddErrorMessage("No valid response from the AI. Try asking about fitness topics.");
+                    }
+                }
+                else
+                {
+                    AddErrorMessage($"API error: {response.StatusCode}");
+                }
+            }
+            catch (Exception ex)
+            {
+                AddErrorMessage($"Error: {ex.Message}");
+            }
+        }
+
+        private void AddErrorMessage(string errorMessage)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                Messages.Add(new ChatMessage
+                {
+                    Content = errorMessage,
+                    SenderName = "System",
+                    Timestamp = DateTime.Now,
+                    IsFromMe = false
                 });
+
+                // Scroll to the bottom
+                ChatListView.ScrollIntoView(Messages[Messages.Count - 1]);
             });
         }
 

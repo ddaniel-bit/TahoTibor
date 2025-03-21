@@ -38,14 +38,14 @@
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
 
-                        <!-- Message from friend (left-aligned) -->
                         <Border Grid.Column="0" 
-                                Background="#E1E1E1" 
-                                CornerRadius="10" 
-                                Padding="10" 
-                                Margin="0,0,40,0"
-                                HorizontalAlignment="Left"
-                                Visibility="{Binding IsFromMe, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=inverse}">
+        Background="#E1E1E1" 
+        CornerRadius="10" 
+        Padding="10" 
+        Margin="0,0,40,0"
+        MaxWidth="400"
+        HorizontalAlignment="Left"
+        Visibility="{Binding IsFromMe, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=inverse}">
                             <StackPanel>
                                 <TextBlock Text="{Binding SenderName}" FontWeight="Bold" Margin="0,0,0,2"/>
                                 <TextBlock Text="{Binding Content}" TextWrapping="Wrap"/>
@@ -55,12 +55,13 @@
 
                         <!-- My message (right-aligned) -->
                         <Border Grid.Column="1" 
-                                Background="#0078D7" 
-                                CornerRadius="10" 
-                                Padding="10" 
-                                Margin="40,0,0,0"
-                                HorizontalAlignment="Right"
-                                Visibility="{Binding IsFromMe, Converter={StaticResource BoolToVisibilityConverter}}">
+        Background="#0078D7" 
+        CornerRadius="10" 
+        Padding="10" 
+        Margin="40,0,0,0"
+        MaxWidth="400"
+        HorizontalAlignment="Right"
+        Visibility="{Binding IsFromMe, Converter={StaticResource BoolToVisibilityConverter}}">
                             <StackPanel>
                                 <TextBlock Text="{Binding Content}" TextWrapping="Wrap" Foreground="White"/>
                                 <TextBlock Text="{Binding Timestamp}" FontSize="10" HorizontalAlignment="Right" Margin="0,4,0,0" Foreground="#DDDDDD"/>
