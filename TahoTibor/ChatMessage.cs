@@ -1,7 +1,5 @@
 ﻿using System;
-using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Windows;
 
 namespace TahoTibor
 {
@@ -11,6 +9,7 @@ namespace TahoTibor
         private string _senderName;
         private DateTime _timestamp;
         private bool _isFromMe;
+        private string _profilePictureUrl;
 
         public string Content
         {
@@ -53,6 +52,19 @@ namespace TahoTibor
                 OnPropertyChanged(nameof(IsFromMe));
             }
         }
+
+        public string ProfilePictureUrl
+        {
+            get { return _profilePictureUrl; }
+            set
+            {
+                _profilePictureUrl = value;
+                OnPropertyChanged(nameof(ProfilePictureUrl));
+                OnPropertyChanged(nameof(HasProfilePicture));
+            }
+        }
+
+        public bool HasProfilePicture => !string.IsNullOrEmpty(ProfilePictureUrl);
 
         public event PropertyChangedEventHandler PropertyChanged;
 

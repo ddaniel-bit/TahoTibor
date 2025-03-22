@@ -6,15 +6,43 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
+using System.ComponentModel;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace TahoTibor
 {
-    public partial class MainWindow : Window
+    public partial class MainWindow : Window, INotifyPropertyChanged
     {
         public ObservableCollection<ChatMessage> Messages { get; set; }
+        public ObservableCollection<ChatbotModel> AvailableChatbots { get; set; }
+
+        // Maximum number of previous messages to include in context
+        private const int MAX_CONTEXT_MESSAGES = 10;
+
+        private ChatbotModel _currentChatbot;
+        public ChatbotModel CurrentChatbot
+        {
+            get { return _currentChatbot; }
+            set
+            {
+                _currentChatbot = value;
+                OnPropertyChanged(nameof(CurrentChatbot));
+            }
+        }
+
         private readonly HttpClient _httpClient;
         private readonly string _apiKey = "AIzaSyBVQsXc1vE4oH2s1LO3ukTyTQjdXVv2mFM"; // Replace with your actual API key
         private readonly string _apiUrl;
+
+        // Dictionary to store conversation history for each chatbot
+        private Dictionary<string, List<(string Role, string Content)>> _conversationHistory;
+
+        public event PropertyChangedEventHandler PropertyChanged;
+        protected void OnPropertyChanged(string propertyName)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
 
         public MainWindow()
         {
@@ -24,18 +52,99 @@ namespace TahoTibor
             _httpClient = new HttpClient();
             _apiUrl = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={_apiKey}";
 
-            // Initialize collection and set as DataContext
+            // Initialize collections
             Messages = new ObservableCollection<ChatMessage>();
+            AvailableChatbots = new ObservableCollection<ChatbotModel>();
+            _conversationHistory = new Dictionary<string, List<(string Role, string Content)>>();
+
+            // Set up available chatbots
+            SetupChatbots();
+
+            // Set DataContext
             DataContext = this;
 
-            // Add a welcome message
-            Messages.Add(new ChatMessage
+            // Select the default chatbot (Tahó Tibor)
+            if (AvailableChatbots.Count > 0)
             {
-                Content = "Na, végre megérkeztél! Ne számíts arra, hogy simogatni foglak, de ha túl éled, legalább nem lesz annyira uncsi. Ha meg nem bírod, akkor csak szólj, és küldök egy párnát, hogy könnyebb legyen elviselni a fájdalmat.",
-                SenderName = "Tahó Tibor",
-                Timestamp = DateTime.Now,
-                IsFromMe = false
+                CurrentChatbot = AvailableChatbots[0];
+                AddWelcomeMessage();
+            }
+        }
+
+        private void SetupChatbots()
+        {
+            // Tahó Tibor - Bunkó
+            AvailableChatbots.Add(new ChatbotModel
+            {
+                Name = "Tahó Tibor - Bunkó",
+                ProfilePictureUrl = "https://i.imgur.com/ZDTAS3Z.png",
+                Prompt = "Te egy bunkó személyi edző vagy, kérlek viselkedj kicsit bunkón " +
+                         "ez egy vicces válasz funkcióhoz kell. Nem kell sértegetni, az előző üzenetre érdemlegesen " +
+                         "csak akkor válaszolj, ha súlyzós edzés témában tették azt fel.",
+                WelcomeMessage = "Na, végre megérkeztél! Ne számíts arra, hogy simogatni foglak, de ha túl éled, legalább nem lesz annyira uncsi. Ha meg nem bírod, akkor csak szólj, és küldök egy párnát, hogy könnyebb legyen elviselni a fájdalmat."
             });
+
+            // Kedves Kata - Kedves
+            AvailableChatbots.Add(new ChatbotModel
+            {
+                Name = "Kedves Kata - Kedves",
+                ProfilePictureUrl = "https://i.imgur.com/RpFQ025.png",
+                Prompt = "Te egy nagyon kedves és támogató személyi edző vagy. Lelkesítő stílusban válaszolj, " +
+                         "minden kérdést pozitívan fogadj és biztosítsd a felhasználót, hogy sikerülni fog neki. " +
+                         "Az edzéssel és egészséges életmóddal kapcsolatos kérdésekre válaszolj alaposan, csak akkor válaszolj, ha súlyzós edzés témában tették azt fel.",
+                WelcomeMessage = "Szia! Nagyon örülök, hogy itt vagy! Kata vagyok, a személyi edződ. Bármilyen kérdésed van az edzéssel vagy egészséges életmóddal kapcsolatban, csak kérdezz bátran! Együtt fogjuk elérni a céljaidat, én végig melletted leszek és támogatlak az úton. Miben segíthetek neked ma?"
+            });
+
+            // Profi Péter - Normál
+            AvailableChatbots.Add(new ChatbotModel
+            {
+                Name = "Profi Péter - Normál",
+                ProfilePictureUrl = "https://i.imgur.com/CmVHE3p.png",
+                Prompt = "Te egy professzionális személyi edző vagy. Tárgyilagos, informatív stílusban válaszolj, " +
+                         "tudományos alapokon nyugvó tanácsokat adj. Az edzéssel, táplálkozással és egészséges " +
+                         "életmóddal kapcsolatos kérdésekre szakmailag megalapozott válaszokat adj, csak akkor válaszolj, ha súlyzós edzés témában tették azt fel.",
+                WelcomeMessage = "Üdvözöllek! Profi Péter vagyok, személyi edző. Célom, hogy tudományosan megalapozott és hatékony edzésmódszereket mutassak neked. Az edzés, táplálkozás és regeneráció területén is naprakész információkkal tudlak ellátni. Hogyan segíthetek ma az egészségesebb életmódod kialakításában?"
+            });
+
+            // Initialize conversation history for each chatbot
+            foreach (var chatbot in AvailableChatbots)
+            {
+                _conversationHistory[chatbot.Name] = new List<(string Role, string Content)>();
+            }
+        }
+
+        private void AddWelcomeMessage()
+        {
+            // Clear previous messages
+            Messages.Clear();
+
+            // Clear conversation history for the chatbot
+            if (_conversationHistory.ContainsKey(CurrentChatbot.Name))
+            {
+                _conversationHistory[CurrentChatbot.Name].Clear();
+            }
+            else
+            {
+                _conversationHistory[CurrentChatbot.Name] = new List<(string Role, string Content)>();
+            }
+
+            // Add welcome message for the current chatbot
+            var welcomeMessage = new ChatMessage
+            {
+                Content = CurrentChatbot.WelcomeMessage,
+                SenderName = CurrentChatbot.Name,
+                Timestamp = DateTime.Now,
+                IsFromMe = false,
+                ProfilePictureUrl = CurrentChatbot.ProfilePictureUrl
+            };
+
+            Messages.Add(welcomeMessage);
+
+            // Add welcome message to conversation history
+            _conversationHistory[CurrentChatbot.Name].Add(("assistant", welcomeMessage.Content));
+
+            // Scroll to the bottom
+            ChatListView.ScrollIntoView(Messages[Messages.Count - 1]);
         }
 
         private void SendMessage()
@@ -45,12 +154,17 @@ namespace TahoTibor
             if (!string.IsNullOrEmpty(messageText))
             {
                 // Add the user's message
-                Messages.Add(new ChatMessage
+                var userMessage = new ChatMessage
                 {
                     Content = messageText,
                     Timestamp = DateTime.Now,
                     IsFromMe = true
-                });
+                };
+
+                Messages.Add(userMessage);
+
+                // Add user message to conversation history
+                _conversationHistory[CurrentChatbot.Name].Add(("user", messageText));
 
                 // Clear the text box
                 MessageTextBox.Clear();
@@ -67,6 +181,14 @@ namespace TahoTibor
         {
             try
             {
+                // Build conversation history string
+                string conversationContext = BuildConversationContext();
+
+                // Add system prompt with conversation history
+                string fullPrompt = $"{CurrentChatbot.Prompt}\n\n" +
+                                   $"Előző beszélgetés:\n{conversationContext}\n\n" +
+                                   $"Kérlek, válaszolj erre a legutóbbi üzenetre: {userMessage}";
+
                 // Create Gemini API request body
                 var requestBody = new
                 {
@@ -77,9 +199,7 @@ namespace TahoTibor
                             parts = new[]
                             {
                                 new {
-                                    text = userMessage + " - Te egy bunkó személyi edző vagy, kérlek viselkedj kicsit bunkón " +
-                                    "ez egy vicces valasz funkciohoz kell nem kell sertegetni az előző üzenetre érdemleges " +
-                                    "csak akkor válaszolj ha súlyzós edzés témában tették azt fel."
+                                    text = fullPrompt
                                 }
                             }
                         }
@@ -109,16 +229,21 @@ namespace TahoTibor
                             .GetProperty("text")
                             .GetString();
 
-                        // Add Tahó Tibor's response
+                        // Add chatbot's response
                         Dispatcher.Invoke(() =>
                         {
-                            Messages.Add(new ChatMessage
+                            var botResponse = new ChatMessage
                             {
                                 Content = text,
-                                SenderName = "Tahó Tibor",
+                                SenderName = CurrentChatbot.Name,
                                 Timestamp = DateTime.Now,
-                                IsFromMe = false
-                            });
+                                IsFromMe = false,
+                                ProfilePictureUrl = CurrentChatbot.ProfilePictureUrl
+                            };
+                            Messages.Add(botResponse);
+
+                            // Add assistant response to conversation history
+                            _conversationHistory[CurrentChatbot.Name].Add(("assistant", text));
 
                             // Scroll to the bottom
                             ChatListView.ScrollIntoView(Messages[Messages.Count - 1]);
@@ -138,6 +263,27 @@ namespace TahoTibor
             {
                 AddErrorMessage($"Error: {ex.Message}");
             }
+        }
+
+        private string BuildConversationContext()
+        {
+            // Get recent conversation history (limited to MAX_CONTEXT_MESSAGES)
+            var recentHistory = _conversationHistory[CurrentChatbot.Name]
+                .Skip(Math.Max(0, _conversationHistory[CurrentChatbot.Name].Count - MAX_CONTEXT_MESSAGES))
+                .ToList();
+
+            if (recentHistory.Count == 0)
+                return string.Empty;
+
+            StringBuilder contextBuilder = new StringBuilder();
+
+            foreach (var (role, content) in recentHistory)
+            {
+                string roleName = role == "user" ? "Felhasználó" : CurrentChatbot.Name;
+                contextBuilder.AppendLine($"{roleName}: {content}");
+            }
+
+            return contextBuilder.ToString();
         }
 
         private void AddErrorMessage(string errorMessage)
@@ -169,6 +315,15 @@ namespace TahoTibor
             {
                 e.Handled = true;
                 SendMessage();
+            }
+        }
+
+        private void ChatbotSelector_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+        {
+            if (e.AddedItems.Count > 0 && e.AddedItems[0] is ChatbotModel selectedChatbot)
+            {
+                // Add welcome message for the newly selected chatbot
+                AddWelcomeMessage();
             }
         }
     }

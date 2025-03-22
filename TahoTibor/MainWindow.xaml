@@ -9,19 +9,46 @@
         xmlns:sys="clr-namespace:System.Windows.Data;assembly=PresentationFramework">
     <Window.Resources>
         <local:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+
+        <Style x:Key="RoundProfileImage" TargetType="Image">
+            <Setter Property="Width" Value="35"/>
+            <Setter Property="Height" Value="35"/>
+            <Setter Property="Stretch" Value="UniformToFill"/>
+            <Setter Property="Margin" Value="0,0,5,0"/>
+            <Setter Property="RenderOptions.BitmapScalingMode" Value="HighQuality"/>
+            <Setter Property="ClipToBounds" Value="True"/>
+            <Setter Property="Clip">
+                <Setter.Value>
+                    <EllipseGeometry Center="17.5,17.5" RadiusX="17.5" RadiusY="17.5"/>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
     <Grid>
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
+        <!-- Chatbot selector -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="10" VerticalAlignment="Center">
+            <TextBlock Text="Válassz chatbotot:" VerticalAlignment="Center" Margin="0,0,10,0"/>
+            <ComboBox x:Name="ChatbotSelector" Width="150" 
+                      ItemsSource="{Binding AvailableChatbots}" 
+                      DisplayMemberPath="Name"
+                      SelectedItem="{Binding CurrentChatbot}"
+                      SelectionChanged="ChatbotSelector_SelectionChanged"/>
+        </StackPanel>
+
         <!-- Chat messages area -->
-        <ListView x:Name="ChatListView" Grid.Row="0" Margin="10" 
-                  BorderThickness="1" BorderBrush="#DDDDDD" 
-                  ScrollViewer.VerticalScrollBarVisibility="Auto"
-                  ItemsSource="{Binding Messages}"
-                  HorizontalContentAlignment="Stretch">
+        <ListView x:Name="ChatListView" Grid.Row="1" Margin="10" 
+          BorderThickness="1" BorderBrush="#DDDDDD" 
+          ScrollViewer.VerticalScrollBarVisibility="Auto"
+          ItemsSource="{Binding Messages}"
+          HorizontalContentAlignment="Stretch"
+          VirtualizingPanel.ScrollUnit="Pixel"
+          VirtualizingStackPanel.VirtualizationMode="Recycling">
             <ListView.ItemContainerStyle>
                 <Style TargetType="ListViewItem">
                     <Setter Property="HorizontalContentAlignment" Value="Stretch" />
@@ -38,33 +65,39 @@
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
 
+                        <!-- Others' message (left-aligned) -->
                         <Border Grid.Column="0" 
-        Background="#E1E1E1" 
-        CornerRadius="10" 
-        Padding="10" 
-        Margin="0,0,40,0"
-        MaxWidth="400"
-        HorizontalAlignment="Left"
-        Visibility="{Binding IsFromMe, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=inverse}">
+                                Background="#E1E1E1" 
+                                CornerRadius="10" 
+                                Padding="10" 
+                                Margin="0,0,40,0"
+                                MaxWidth="400"
+                                HorizontalAlignment="Left"
+                                Visibility="{Binding IsFromMe, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=inverse}">
                             <StackPanel>
-                                <TextBlock Text="{Binding SenderName}" FontWeight="Bold" Margin="0,0,0,2"/>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                    <Image Source="{Binding ProfilePictureUrl}" 
+                                           Style="{StaticResource RoundProfileImage}"
+                                           Visibility="{Binding HasProfilePicture, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                    <TextBlock Text="{Binding SenderName}" FontWeight="Bold" VerticalAlignment="Center"/>
+                                </StackPanel>
                                 <TextBlock Text="{Binding Content}" TextWrapping="Wrap"/>
-                                <TextBlock Text="{Binding Timestamp}" FontSize="10" HorizontalAlignment="Right" Margin="0,4,0,0" Foreground="#777777"/>
+                                <TextBlock Text="{Binding TimestampFormatted}" FontSize="10" HorizontalAlignment="Right" Margin="0,4,0,0" Foreground="#777777"/>
                             </StackPanel>
                         </Border>
 
                         <!-- My message (right-aligned) -->
                         <Border Grid.Column="1" 
-        Background="#0078D7" 
-        CornerRadius="10" 
-        Padding="10" 
-        Margin="40,0,0,0"
-        MaxWidth="400"
-        HorizontalAlignment="Right"
-        Visibility="{Binding IsFromMe, Converter={StaticResource BoolToVisibilityConverter}}">
+                                Background="#0078D7" 
+                                CornerRadius="10" 
+                                Padding="10" 
+                                Margin="40,0,0,0"
+                                MaxWidth="400"
+                                HorizontalAlignment="Right"
+                                Visibility="{Binding IsFromMe, Converter={StaticResource BoolToVisibilityConverter}}">
                             <StackPanel>
                                 <TextBlock Text="{Binding Content}" TextWrapping="Wrap" Foreground="White"/>
-                                <TextBlock Text="{Binding Timestamp}" FontSize="10" HorizontalAlignment="Right" Margin="0,4,0,0" Foreground="#DDDDDD"/>
+                                <TextBlock Text="{Binding TimestampFormatted}" FontSize="10" HorizontalAlignment="Right" Margin="0,4,0,0" Foreground="#DDDDDD"/>
                             </StackPanel>
                         </Border>
                     </Grid>
@@ -73,7 +106,7 @@
         </ListView>
 
         <!-- Message input area -->
-        <Grid Grid.Row="1" Margin="10">
+        <Grid Grid.Row="2" Margin="10">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
