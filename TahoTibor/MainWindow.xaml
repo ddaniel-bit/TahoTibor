@@ -34,11 +34,21 @@
         <!-- Chatbot selector -->
         <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="10" VerticalAlignment="Center">
             <TextBlock Text="Válassz chatbotot:" VerticalAlignment="Center" Margin="0,0,10,0"/>
-            <ComboBox x:Name="ChatbotSelector" Width="150" 
-                      ItemsSource="{Binding AvailableChatbots}" 
-                      DisplayMemberPath="Name"
-                      SelectedItem="{Binding CurrentChatbot}"
-                      SelectionChanged="ChatbotSelector_SelectionChanged"/>
+            <ComboBox x:Name="ChatbotSelector" Width="200" 
+          ItemsSource="{Binding AvailableChatbots}" 
+          SelectedItem="{Binding CurrentChatbot}"
+          SelectionChanged="ChatbotSelector_SelectionChanged">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Orientation="Horizontal">
+                            <Image Source="{Binding ProfilePictureUrl}" 
+                            Style="{StaticResource RoundProfileImage}">
+                            </Image>
+                            <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
         </StackPanel>
 
         <!-- Chat messages area -->
