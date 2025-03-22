@@ -9,6 +9,7 @@ using System.Windows.Input;
 using System.ComponentModel;
 using System.Collections.Generic;
 using System.Linq;
+using System.Windows.Threading;
 
 namespace TahoTibor
 {
@@ -31,12 +32,30 @@ namespace TahoTibor
             }
         }
 
+        private bool _isLoading;
+        public bool IsLoading
+        {
+            get { return _isLoading || _isTyping; } // Itt kombináljuk az IsLoading és _isTyping állapotokat
+            set
+            {
+                _isLoading = value;
+                OnPropertyChanged(nameof(IsLoading));
+            }
+        }
+
         private readonly HttpClient _httpClient;
         private readonly string _apiKey = "AIzaSyBVQsXc1vE4oH2s1LO3ukTyTQjdXVv2mFM"; // Replace with your actual API key
         private readonly string _apiUrl;
 
         // Dictionary to store conversation history for each chatbot
         private Dictionary<string, List<(string Role, string Content)>> _conversationHistory;
+
+        // Typing effect fields
+        private DispatcherTimer _typingTimer;
+        private string _fullResponseText;
+        private int _currentCharIndex;
+        private ChatMessage _currentTypingMessage;
+        private bool _isTyping; // Új mező az írás állapot követésére
 
         public event PropertyChangedEventHandler PropertyChanged;
         protected void OnPropertyChanged(string propertyName)
@@ -60,6 +79,12 @@ namespace TahoTibor
             // Set up available chatbots
             SetupChatbots();
 
+            // Initialize typing timer
+            _typingTimer = new DispatcherTimer();
+            _typingTimer.Interval = TimeSpan.FromMilliseconds(10); // Adjust typing speed here
+            _typingTimer.Tick += TypingTimer_Tick;
+            _isTyping = false;
+
             // Set DataContext
             DataContext = this;
 
@@ -68,6 +93,31 @@ namespace TahoTibor
             {
                 CurrentChatbot = AvailableChatbots[0];
                 AddWelcomeMessage();
+            }
+        }
+
+        private void TypingTimer_Tick(object sender, EventArgs e)
+        {
+            if (_currentCharIndex < _fullResponseText.Length)
+            {
+                // Add one character at a time to create typing effect
+                _currentTypingMessage.Content = _fullResponseText.Substring(0, _currentCharIndex + 1);
+                _currentCharIndex++;
+
+                // Scroll to the bottom
+                ChatListView.ScrollIntoView(_currentTypingMessage);
+            }
+            else
+            {
+                // Stop the timer once we've displayed the full text
+                _typingTimer.Stop();
+
+                // Set typing state to false
+                _isTyping = false;
+                OnPropertyChanged(nameof(IsLoading)); // Értesítés az IsLoading változásáról
+
+                // Add the complete response to conversation history
+                _conversationHistory[CurrentChatbot.Name].Add(("assistant", _fullResponseText));
             }
         }
 
@@ -151,7 +201,7 @@ namespace TahoTibor
         {
             string messageText = MessageTextBox.Text.Trim();
 
-            if (!string.IsNullOrEmpty(messageText))
+            if (!string.IsNullOrEmpty(messageText) && !IsLoading) // Ellenőrizzük, hogy nincs-e betöltés vagy gépelés
             {
                 // Add the user's message
                 var userMessage = new ChatMessage
@@ -172,12 +222,29 @@ namespace TahoTibor
                 // Scroll to the bottom
                 ChatListView.ScrollIntoView(Messages[Messages.Count - 1]);
 
+                // Set loading state to true
+                IsLoading = true;
+
+                // Add loading message with progress bar
+                var loadingMessage = new ChatMessage
+                {
+                    Content = "",  // Empty content as we're showing the progress bar
+                    SenderName = CurrentChatbot.Name,
+                    Timestamp = DateTime.Now,
+                    IsFromMe = false,
+                    ProfilePictureUrl = CurrentChatbot.ProfilePictureUrl,
+                    IsLoading = true
+                };
+
+                Messages.Add(loadingMessage);
+                ChatListView.ScrollIntoView(loadingMessage);
+
                 // Get response from Gemini API
-                GetGeminiResponseAsync(messageText);
+                GetGeminiResponseAsync(messageText, loadingMessage);
             }
         }
 
-        private async Task GetGeminiResponseAsync(string userMessage)
+        private async Task GetGeminiResponseAsync(string userMessage, ChatMessage loadingMessage)
         {
             try
             {
@@ -229,40 +296,69 @@ namespace TahoTibor
                             .GetProperty("text")
                             .GetString();
 
-                        // Add chatbot's response
+                        // Remove loading message
                         Dispatcher.Invoke(() =>
                         {
-                            var botResponse = new ChatMessage
+                            Messages.Remove(loadingMessage);
+
+                            // Start typing effect
+                            _fullResponseText = text;
+                            _currentCharIndex = 0;
+                            _isTyping = true; // Beállítjuk a gépelés állapotot
+
+                            // Create and add chatbot's response message (initially empty)
+                            _currentTypingMessage = new ChatMessage
                             {
-                                Content = text,
+                                Content = "",
                                 SenderName = CurrentChatbot.Name,
                                 Timestamp = DateTime.Now,
                                 IsFromMe = false,
                                 ProfilePictureUrl = CurrentChatbot.ProfilePictureUrl
                             };
-                            Messages.Add(botResponse);
 
-                            // Add assistant response to conversation history
-                            _conversationHistory[CurrentChatbot.Name].Add(("assistant", text));
+                            Messages.Add(_currentTypingMessage);
 
-                            // Scroll to the bottom
-                            ChatListView.ScrollIntoView(Messages[Messages.Count - 1]);
+                            // Start the typing timer
+                            _typingTimer.Start();
+
+                            // Set loading state to false, de a _isTyping még true
+                            IsLoading = false;
                         });
                     }
                     else
                     {
-                        AddErrorMessage("No valid response from the AI. Try asking about fitness topics.");
+                        RemoveLoadingMessageAndAddError("No valid response from the AI. Try asking about fitness topics.");
                     }
                 }
                 else
                 {
-                    AddErrorMessage($"API error: {response.StatusCode}");
+                    RemoveLoadingMessageAndAddError($"API error: {response.StatusCode}");
                 }
             }
             catch (Exception ex)
             {
-                AddErrorMessage($"Error: {ex.Message}");
+                RemoveLoadingMessageAndAddError($"Error: {ex.Message}");
             }
+        }
+
+        private void RemoveLoadingMessageAndAddError(string errorMessage)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                // Find and remove loading message
+                var loadingMsg = Messages.FirstOrDefault(m => m.IsLoading);
+                if (loadingMsg != null)
+                {
+                    Messages.Remove(loadingMsg);
+                }
+
+                // Add error message
+                AddErrorMessage(errorMessage);
+
+                // Set loading state to false
+                IsLoading = false;
+                _isTyping = false;
+            });
         }
 
         private string BuildConversationContext()

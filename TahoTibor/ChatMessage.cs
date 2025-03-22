@@ -10,6 +10,7 @@ namespace TahoTibor
         private DateTime _timestamp;
         private bool _isFromMe;
         private string _profilePictureUrl;
+        private bool _isLoading;
 
         public string Content
         {
@@ -65,6 +66,16 @@ namespace TahoTibor
         }
 
         public bool HasProfilePicture => !string.IsNullOrEmpty(ProfilePictureUrl);
+
+        public bool IsLoading
+        {
+            get { return _isLoading; }
+            set
+            {
+                _isLoading = value;
+                OnPropertyChanged(nameof(IsLoading));
+            }
+        }
 
         public event PropertyChangedEventHandler PropertyChanged;
 
